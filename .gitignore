@@ -1,0 +1,7 @@
+*.gitattributes
+*.class
+*.jar
+*.classpath
+*.project
+*.settings/*
+.metadata/*
