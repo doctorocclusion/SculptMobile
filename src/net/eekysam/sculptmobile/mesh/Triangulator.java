@@ -12,11 +12,13 @@ public class Triangulator
 {
 	private ArrayList<Point> verticies;
 	private ITriangleMesh out;
+	private boolean isClockwise;
 	
-	public Triangulator(Polygon in, ITriangleMesh out)
+	public Triangulator(Polygon in, ITriangleMesh out) throws PolygonException
 	{
 		this.verticies = new ArrayList<Point>();
 		this.verticies.addAll(in.verticies);
+		this.isClockwise = in.isClockwise();
 		this.out = out;
 	}
 	
@@ -47,6 +49,8 @@ public class Triangulator
 		Point b;
 		Point c;
 		
+		int mult = this.isClockwise ? -1 : 1;
+		
 		int size = this.verticies.size();
 		for (int i = 0; i < size; i++)
 		{
@@ -57,7 +61,7 @@ public class Triangulator
 			Vector ray1 = (new Ray(a, Point.mean(a, c))).getVector();
 			Vector ray2 = (new Ray(a, c)).getVector().getTransformed(new double[][] { { 0, 1 }, { -1, 0 } });
 			
-			if (Vector.dot(ray1, ray2) > 0)
+			if (Vector.dot(ray1, ray2) * mult > 0)
 			{
 				Triangle tri = new Triangle(a, b, c);
 				

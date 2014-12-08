@@ -21,7 +21,29 @@ public class Triangle
 	{
 		Ray a = new Ray(Point.mean(this.points[0], this.points[1]), this.points[2]);
 		Ray b = new Ray(Point.mean(this.points[1], this.points[2]), this.points[0]);
-		return Ray.getIntersection(a, b);
+		Point p = Ray.getIntersection(a, b);
+		if (p == null)
+		{
+			Ray A = new Ray(this.points[0], this.points[1]);
+			Ray B = new Ray(this.points[1], this.points[2]);
+			Ray C = new Ray(this.points[2], this.points[0]);
+			double Al = A.getLengthSqr();
+			double Bl = B.getLengthSqr();
+			double Cl = C.getLengthSqr();
+			if (Al > Bl && Al > Cl)
+			{
+				return A.getMidpoint();
+			}
+			else if (Bl > Cl)
+			{
+				return B.getMidpoint();
+			}
+			else
+			{
+				return C.getMidpoint();
+			}
+		}
+		return p;
 	}
 	
 	public double getArea()
