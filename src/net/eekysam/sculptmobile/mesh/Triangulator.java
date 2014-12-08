@@ -1,94 +1,151 @@
 package net.eekysam.sculptmobile.mesh;
 
 import java.util.ArrayList;
-import java.util.Collections;
 
 import net.eekysam.sculptmobile.geo.Point;
-import net.eekysam.sculptmobile.geo.Ray;
 import net.eekysam.sculptmobile.geo.Triangle;
-import net.eekysam.sculptmobile.geo.Vector;
 import net.eekysam.sculptmobile.mesh.Polygon.PolygonException;
 
 public class Triangulator
 {
-	private ArrayList<Point> verticies;
+	private Point[] verticies;
+	private short[] vertexType;
+	private boolean[] isEar;
+	private ArrayList<Integer> indicies = new ArrayList<Integer>();
 	private ITriangleMesh out;
 
 	public Triangulator(Polygon in, ITriangleMesh out) throws PolygonException
 	{
-		this.verticies = new ArrayList<Point>();
-		this.verticies.addAll(in.verticies);
+		int num = in.verticies.size();
+		this.verticies = new Point[num];
+		in.verticies.toArray(this.verticies);
+		this.indicies.ensureCapacity(num);
 		if (in.isClockwise())
 		{
-			Collections.reverse(this.verticies);
+			for (int i = num - 1; i >= 0; i--)
+			{
+				this.indicies.add(i);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < num; i++)
+			{
+				this.indicies.add(i);
+			}
+		}
+
+		this.vertexType = new short[num];
+		this.isEar = new boolean[num];
+
+		for (int i = 0; i < num; i++)
+		{
+			this.update(i);
 		}
 		this.out = out;
 	}
 
-	public void triangulate() throws PolygonException
+	private int getIndex(int vert)
 	{
-		if (this.verticies.size() < 3)
-		{
-			throw new PolygonException("Polygon must have at least 3 verticies.");
-		}
-		while (!this.run())
-		{
-
-		}
-		if (this.verticies.size() == 3)
-		{
-			this.out.addTriangle(new Triangle(this.verticies.get(0), this.verticies.get(1), this.verticies.get(2)));
-		}
+		vert += this.indicies.size();
+		vert %= this.indicies.size();
+		return this.indicies.get(vert);
 	}
 
-	private boolean run() throws PolygonException
+	private void remove(int vert)
 	{
-		if (this.verticies.size() < 4)
+		vert += this.indicies.size();
+		vert %= this.indicies.size();
+		this.indicies.remove(vert);
+	}
+
+	private void clipEar(int vert)
+	{
+		int ai = this.getIndex(vert - 1);
+		int bi = this.getIndex(vert);
+		int ci = this.getIndex(vert + 1);
+
+		Point a = this.verticies[ai];
+		Point b = this.verticies[bi];
+		Point c = this.verticies[ci];
+
+		this.remove(vert);
+		this.update(vert - 1);
+		this.update(vert);
+
+		this.out.addTriangle(new Triangle(a, b, c));
+	}
+
+	private int update(int vert)
+	{
+		int ai = this.getIndex(vert - 1);
+		int bi = this.getIndex(vert);
+		int ci = this.getIndex(vert + 1);
+
+		Point a = this.verticies[ai];
+		Point b = this.verticies[bi];
+		Point c = this.verticies[ci];
+
+		Triangle t = new Triangle(a, b, c);
+
+		if (this.vertexType[bi] != 1)
 		{
-			return true;
+			this.updateType(a, b, c, bi);
 		}
 
-		Point a;
-		Point b;
-		Point c;
-
-		int size = this.verticies.size();
-		for (int i = 0; i < size; i++)
+		if (this.vertexType[bi] == 1)
 		{
-			a = this.verticies.get((i - 1 + size) % size);
-			b = this.verticies.get(i);
-			c = this.verticies.get((i + 1 + size) % size);
-
-			Vector ray1 = (new Ray(a, Point.mean(a, c))).getVector();
-			Vector ray2 = (new Ray(a, c)).getVector().getTransformed(new double[][] { { 0, 1 }, { -1, 0 } });
-
-			if (Vector.dot(ray1, ray2) > 0)
+			this.isEar[bi] = true;
+			for (int ind : this.indicies)
 			{
-				Triangle tri = new Triangle(a, b, c);
-
-				boolean hasInside = false;
-
-				for (Point p : this.verticies)
+				if (ind != ai && ind != bi && ind != ci && t.isPointInside(this.verticies[ind]))
 				{
-					if (p != a && p != b && p != c)
-					{
-						if (tri.isPointInside(p))
-						{
-							hasInside = true;
-							break;
-						}
-					}
-				}
-
-				if (!hasInside)
-				{
-					this.out.addTriangle(tri);
-					this.verticies.remove(i);
-					return this.verticies.size() < 4;
+					this.isEar[bi] = false;
+					break;
 				}
 			}
 		}
+		else
+		{
+			this.isEar[bi] = false;
+		}
+		return bi;
+	}
 
-		throw new PolygonException("All polygons should have at lest one ear.");
+	private short spannedAreaSign(Point a, Point b, Point c)
+	{
+		double area = a.x * (c.y - b.y);
+		area += b.x * (a.y - c.y);
+		area += c.x * (b.y - a.y);
+		return (short) Math.signum(-area);
+	}
+
+	private void updateType(Point a, Point b, Point c, int index)
+	{
+		this.vertexType[index] = this.spannedAreaSign(a, b, c);
+	}
+
+	public void triangulate() throws PolygonException
+	{
+		while (this.indicies.size() >= 3)
+		{
+			boolean flag = false;
+			for (int vert = 0; vert < this.indicies.size(); vert++)
+			{
+				int ind = this.getIndex(vert);
+
+				if (this.isEar[ind])
+				{
+					flag = true;
+					this.clipEar(vert);
+					break;
+				}
+			}
+
+			if (!flag)
+			{
+				throw new PolygonException("A polygon must have at least one ear.");
+			}
+		}
 	}
 }

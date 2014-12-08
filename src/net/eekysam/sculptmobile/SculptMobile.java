@@ -26,17 +26,18 @@ public class SculptMobile
 	}
 
 	// {Outline, Fill, Center of Mass, Mesh, All Centers}
-	public static boolean[][] modes = new boolean[][] { { true, true, true, false, false }, { false, true, false, true, false }, { false, true, false, true, true } };
+	public static boolean[][] modes = new boolean[][] { { true, true, true, false, false }, { true, true, false, true, false }, { false, true, false, true, true }, { true, true, false, false, true } };
 
 	public Polygon poly = null;
 	public TriangleArrayMesh mesh = null;
 	public Point centerOfMass = null;
 	public PolyDraw draw = null;
 	public int renderMode = 1;
+	public double area = Double.NaN;
 
 	protected void run()
 	{
-		this.updateDisplay(500, 500, false, true);
+		this.updateDisplay(800, 800, false, true);
 
 		Keyboard.enableRepeatEvents(false);
 
@@ -63,6 +64,14 @@ public class SculptMobile
 		{
 			this.renderPoint(t.points[i]);
 		}
+	}
+
+	private void renderDotPoint(Point p, double r)
+	{
+		this.renderPoint(p, -r, 0);
+		this.renderPoint(p, 0, r);
+		this.renderPoint(p, r, 0);
+		this.renderPoint(p, 0, -r);
 	}
 
 	private void renderPoint(Point p, double x, double y)
@@ -92,6 +101,17 @@ public class SculptMobile
 
 	public void render()
 	{
+		String title = "Sculpt Mobile | Sam Sartor";
+		if (Double.isFinite(this.area))
+		{
+			title += String.format(" | Area = %.2f", this.area);
+		}
+		if (this.mesh != null)
+		{
+			title += String.format(" | Triangles = %d", this.mesh.triangles.size());
+		}
+		Display.setTitle(title);
+
 		GL11.glMatrixMode(GL11.GL_PROJECTION);
 		GL11.glLoadIdentity();
 		GL11.glOrtho(0, Display.getWidth(), 0, Display.getHeight(), 1, -1);
@@ -135,7 +155,7 @@ public class SculptMobile
 			if (mode[1])
 			{
 				GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
-				GL11.glColor3f(0.5f, 0.5f, 0.5f);
+				GL11.glColor3f(0.7f, 0.7f, 0.7f);
 
 				GL11.glBegin(GL11.GL_TRIANGLES);
 
@@ -149,7 +169,7 @@ public class SculptMobile
 			if (mode[3])
 			{
 				GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
-				GL11.glColor3f(0.0f, 0.0f, 0.0f);
+				GL11.glColor3f(0.4f, 0.4f, 0.4f);
 				GL11.glLineWidth(1.0f);
 
 				GL11.glBegin(GL11.GL_TRIANGLES);
@@ -161,12 +181,26 @@ public class SculptMobile
 
 				GL11.glEnd();
 			}
+			if (mode[4])
+			{
+				GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
+				GL11.glColor3f(0.0f, 1.0f, 0.0f);
+
+				GL11.glBegin(GL11.GL_QUADS);
+
+				for (Triangle t : this.mesh.triangles)
+				{
+					this.renderDotPoint(t.getCentroid(), 3);
+				}
+
+				GL11.glEnd();
+			}
 		}
 
 		if (mode[0] && this.poly != null && !this.poly.verticies.isEmpty())
 		{
 			GL11.glColor3f(0.0f, 0.0f, 0.0f);
-			GL11.glLineWidth(1.0f);
+			GL11.glLineWidth(1.5f);
 
 			GL11.glBegin(GL11.GL_LINE_STRIP);
 
@@ -185,15 +219,12 @@ public class SculptMobile
 		if (mode[2] && this.centerOfMass != null)
 		{
 			GL11.glColor3f(0.0f, 0.0f, 1.0f);
-			GL11.glLineWidth(1.0f);
+			GL11.glLineWidth(2.0f);
+			GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
 
-			GL11.glBegin(GL11.GL_LINE_STRIP);
+			GL11.glBegin(GL11.GL_QUADS);
 
-			this.renderPoint(this.centerOfMass, -3, 0);
-			this.renderPoint(this.centerOfMass, 0, 3);
-			this.renderPoint(this.centerOfMass, 3, 0);
-			this.renderPoint(this.centerOfMass, 0, -3);
-			this.renderPoint(this.centerOfMass, -3, 0);
+			this.renderDotPoint(this.centerOfMass, 8);
 
 			GL11.glEnd();
 		}
@@ -238,6 +269,7 @@ public class SculptMobile
 			e.printStackTrace();
 		}
 		this.centerOfMass = this.mesh.getCenterOfMass();
+		this.area = this.mesh.getTotalArea();
 	}
 
 	private void doInputEvents()
@@ -255,6 +287,7 @@ public class SculptMobile
 						this.centerOfMass = null;
 						this.mesh = null;
 						this.poly = null;
+						this.area = Double.NaN;
 						this.draw = new PolyDraw(10.0F);
 					}
 					else
@@ -355,7 +388,6 @@ public class SculptMobile
 	public void updateDisplay(int width, int height, boolean full, boolean vsync)
 	{
 		this.setDisplayMode(width, height, full);
-		Display.setTitle("Sculpt Mobile");
 		Display.setVSyncEnabled(vsync);
 	}
 }
