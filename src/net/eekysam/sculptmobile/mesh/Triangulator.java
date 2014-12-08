@@ -3,7 +3,9 @@ package net.eekysam.sculptmobile.mesh;
 import java.util.ArrayList;
 
 import net.eekysam.sculptmobile.geo.Point;
+import net.eekysam.sculptmobile.geo.Ray;
 import net.eekysam.sculptmobile.geo.Triangle;
+import net.eekysam.sculptmobile.geo.Vector;
 import net.eekysam.sculptmobile.mesh.Polygon.PolygonException;
 
 public class Triangulator
@@ -24,7 +26,7 @@ public class Triangulator
 		{
 			throw new PolygonException("Polygon must have at least 3 verticies.");
 		}
-		while (this.run())
+		while (!this.run())
 		{
 			
 		}
@@ -52,27 +54,36 @@ public class Triangulator
 			b = this.verticies.get(i);
 			c = this.verticies.get((i + 1 + size) % size);
 			
-			Triangle tri = new Triangle(a, b, c);
+			Vector ray1 = (new Ray(a, Point.mean(a, c))).getVector();
+			Vector ray2 = (new Ray(a, c)).getVector().getTransformed(new double[][] { { 0, 1 }, { -1, 0 } });
 			
-			boolean hasInside = false;
-			
-			for (Point p : this.verticies)
+			if (Vector.dot(ray1, ray2) > 0)
 			{
-				if (tri.isPointInside(p))
+				Triangle tri = new Triangle(a, b, c);
+				
+				boolean hasInside = false;
+				
+				for (Point p : this.verticies)
 				{
-					hasInside = true;
-					break;
+					if (p != a && p != b && p != c)
+					{
+						if (tri.isPointInside(p))
+						{
+							hasInside = true;
+							break;
+						}
+					}
 				}
-			}
-			
-			if (!hasInside)
-			{
-				this.out.addTriangle(tri);
-				this.verticies.remove(i);
-				return this.verticies.size() < 4;
+				
+				if (!hasInside)
+				{
+					this.out.addTriangle(tri);
+					this.verticies.remove(i);
+					return this.verticies.size() < 4;
+				}
 			}
 		}
 		
-		throw new PolygonException("All polygons should have at lest one convex vertex.");
+		throw new PolygonException("All polygons should have at lest one ear.");
 	}
 }

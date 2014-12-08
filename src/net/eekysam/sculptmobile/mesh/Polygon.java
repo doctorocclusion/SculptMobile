@@ -1,6 +1,6 @@
 package net.eekysam.sculptmobile.mesh;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 
 import net.eekysam.sculptmobile.geo.Point;
 
@@ -21,5 +21,5 @@ public class Polygon
 		}
 	}
 	
-	public LinkedList<Point> verticies = new LinkedList<Point>();
+	public ArrayList<Point> verticies = new ArrayList<Point>();
 }

@@ -9,18 +9,23 @@ public class Vector extends Point
 	
 	public double getLengthSqr()
 	{
-		return this.x * this.x + this.y * this.y;
+		return Math.abs(this.x * this.x + this.y * this.y);
 	}
 	
 	public double getLength()
 	{
-		return Math.sqrt(this.getLength());
+		return Math.sqrt(this.getLengthSqr());
 	}
 	
 	public Vector getNormalized()
 	{
 		double length = this.getLength();
 		return new Vector(this.x / length, this.y / length);
+	}
+	
+	public Vector getTransformed(double[][] matrix)
+	{
+		return new Vector(this.x + matrix[0][0] + this.y + matrix[0][1], this.x + matrix[1][0] + this.y + matrix[1][1]);
 	}
 	
 	public static double dot(Vector a, Vector b)
