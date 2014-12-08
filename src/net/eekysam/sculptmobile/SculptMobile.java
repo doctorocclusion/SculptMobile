@@ -1,124 +1,361 @@
 package net.eekysam.sculptmobile;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.util.Random;
-
-import javax.imageio.ImageIO;
+import java.util.Iterator;
+import java.util.List;
 
 import net.eekysam.sculptmobile.geo.Point;
-import net.eekysam.sculptmobile.geo.Ray;
 import net.eekysam.sculptmobile.geo.Triangle;
 import net.eekysam.sculptmobile.mesh.Polygon;
 import net.eekysam.sculptmobile.mesh.Polygon.PolygonException;
 import net.eekysam.sculptmobile.mesh.TriangleArrayMesh;
 import net.eekysam.sculptmobile.mesh.Triangulator;
 
+import org.lwjgl.LWJGLException;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
+
 public class SculptMobile
 {
 	public static void main(String[] args)
 	{
-		Polygon gon = new Polygon();
-		
-		double[][] verts = new double[][] { { 0.957023, 0.756766 }, { 0.693305, 1.05442 }, { 0.505813, 1.26947 }, { 0.0189531, 1.24461 }, { -0.384784, 1.16841 }, { -0.620767, 0.876489 }, { -0.925177, 0.231389 }, { -0.732801, 0.0940934 }, { -0.708597, -0.280715 }, { -0.182796, -0.804179 }, { 0.131973, -0.990042 }, { 0.492099, -0.62132 }, { 0.835736, -0.582399 }, { 1.19965, -0.128073 }, { 1.04042, 0.206185 } };
-		
-		for (int i = 0; i < verts.length; i++)
-		{
-			gon.verticies.add(new Point(verts[i][0], verts[i][1]));
-		}
-		
-		TriangleArrayMesh mesh = new TriangleArrayMesh();
-		
+		SculptMobile instance = new SculptMobile();
+		instance.run();
+	}
+
+	// {Outline, Fill, Center of Mass, Mesh, All Centers}
+	public static boolean[][] modes = new boolean[][] { { true, true, true, false, false }, { false, true, false, true, false }, { false, true, false, true, true } };
+
+	public Polygon poly = null;
+	public TriangleArrayMesh mesh = null;
+	public Point centerOfMass = null;
+	public PolyDraw draw = null;
+	public int renderMode = 1;
+
+	protected void run()
+	{
+		this.updateDisplay(500, 500, false, true);
+
+		Keyboard.enableRepeatEvents(false);
+
 		try
 		{
-			Triangulator tritor = new Triangulator(gon, mesh);
-			tritor.triangulate();
+			Display.create();
+		}
+		catch (LWJGLException e)
+		{
+			e.printStackTrace();
+		}
+
+		this.runloop();
+	}
+
+	private void renderPoint(Point p)
+	{
+		GL11.glVertex2d(p.x, p.y);
+	}
+
+	private void renderTriangle(Triangle t)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			this.renderPoint(t.points[i]);
+		}
+	}
+
+	private void renderPoint(Point p, double x, double y)
+	{
+		GL11.glVertex2d(p.x + x, p.y + y);
+	}
+
+	public void tick()
+	{
+		if (Mouse.isInsideWindow())
+		{
+			Point loc = new Point(Mouse.getX(), Mouse.getY());
+			if (this.draw != null)
+			{
+				if (!this.draw.tick(loc))
+				{
+					this.endDraw();
+				}
+			}
+		}
+	}
+
+	public boolean[] getMode()
+	{
+		return SculptMobile.modes[(this.renderMode - 1 + SculptMobile.modes.length) % SculptMobile.modes.length];
+	}
+
+	public void render()
+	{
+		GL11.glMatrixMode(GL11.GL_PROJECTION);
+		GL11.glLoadIdentity();
+		GL11.glOrtho(0, Display.getWidth(), 0, Display.getHeight(), 1, -1);
+		GL11.glMatrixMode(GL11.GL_MODELVIEW);
+
+		GL11.glClearColor(0.9F, 0.9F, 0.9F, 1.0F);
+		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+
+		if (this.draw != null)
+		{
+			List<Point> points = this.draw.getPoints();
+
+			if (points.size() >= 2)
+			{
+				GL11.glColor3f(0.0f, 0.0f, 0.0f);
+				GL11.glLineWidth(1.0f);
+
+				GL11.glBegin(GL11.GL_LINE_STRIP);
+
+				for (Point p : points)
+				{
+					this.renderPoint(p);
+				}
+
+				Point loc = new Point(Mouse.getX(), Mouse.getY());
+				this.renderPoint(loc);
+
+				if (this.draw.canEnd(loc))
+				{
+					this.renderPoint(points.get(0));
+				}
+
+				GL11.glEnd();
+			}
+		}
+
+		boolean[] mode = this.getMode();
+
+		if (this.mesh != null)
+		{
+			if (mode[1])
+			{
+				GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
+				GL11.glColor3f(0.5f, 0.5f, 0.5f);
+
+				GL11.glBegin(GL11.GL_TRIANGLES);
+
+				for (Triangle t : this.mesh.triangles)
+				{
+					this.renderTriangle(t);
+				}
+
+				GL11.glEnd();
+			}
+			if (mode[3])
+			{
+				GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
+				GL11.glColor3f(0.0f, 0.0f, 0.0f);
+				GL11.glLineWidth(1.0f);
+
+				GL11.glBegin(GL11.GL_TRIANGLES);
+
+				for (Triangle t : this.mesh.triangles)
+				{
+					this.renderTriangle(t);
+				}
+
+				GL11.glEnd();
+			}
+		}
+
+		if (mode[0] && this.poly != null && !this.poly.verticies.isEmpty())
+		{
+			GL11.glColor3f(0.0f, 0.0f, 0.0f);
+			GL11.glLineWidth(1.0f);
+
+			GL11.glBegin(GL11.GL_LINE_STRIP);
+
+			Iterator<Point> it = this.poly.verticies.iterator();
+
+			while (it.hasNext())
+			{
+				this.renderPoint(it.next());
+			}
+
+			this.renderPoint(this.poly.verticies.getFirst());
+
+			GL11.glEnd();
+		}
+
+		if (mode[2] && this.centerOfMass != null)
+		{
+			GL11.glColor3f(0.0f, 0.0f, 1.0f);
+			GL11.glLineWidth(1.0f);
+
+			GL11.glBegin(GL11.GL_LINE_STRIP);
+
+			this.renderPoint(this.centerOfMass, -3, 0);
+			this.renderPoint(this.centerOfMass, 0, 3);
+			this.renderPoint(this.centerOfMass, 3, 0);
+			this.renderPoint(this.centerOfMass, 0, -3);
+			this.renderPoint(this.centerOfMass, -3, 0);
+
+			GL11.glEnd();
+		}
+	}
+
+	public void runloop()
+	{
+		while (!Display.isCloseRequested())
+		{
+			try
+			{
+				this.doInputEvents();
+				this.tick();
+				this.render();
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+				this.shutdown();
+				return;
+			}
+
+			Display.update();
+			Display.sync(60);
+		}
+		this.shutdown();
+	}
+
+	private void endDraw()
+	{
+		this.poly = new Polygon();
+		this.poly.verticies.addAll(this.draw.getPoints());
+		this.draw = null;
+		this.mesh = new TriangleArrayMesh();
+		try
+		{
+			Triangulator tri = new Triangulator(this.poly, this.mesh);
+			tri.triangulate();
 		}
 		catch (PolygonException e)
 		{
 			e.printStackTrace();
 		}
-		
-		BufferedImage img = new BufferedImage(500, 500, BufferedImage.TYPE_INT_ARGB);
-		
-		int ox = img.getWidth() / 2;
-		int oy = img.getWidth() / 2;
-		double sx = img.getWidth() / 4;
-		double sy = img.getHeight() / 4;
-		
-		int[] colors = new int[mesh.triangles.size()];
-		
-		Random rand = new Random();
-		for (int i = 0; i < colors.length; i++)
+		this.centerOfMass = this.mesh.getCenterOfMass();
+	}
+
+	private void doInputEvents()
+	{
+		while (Mouse.next())
 		{
-			colors[i] = 0xFF000000 | rand.nextInt(0xFFFFFF);
-		}
-		
-		for (int i = 0; i < img.getWidth(); i++)
-		{
-			for (int j = 0; j < img.getHeight(); j++)
+			if (Mouse.getEventButtonState())
 			{
-				double x = (i - ox) / sx;
-				double y = (j - oy) / sy;
-				Point p = new Point(x, y);
-				int tn = 0;
-				for (Triangle t : mesh.triangles)
+				Point loc = new Point(Mouse.getEventX(), Mouse.getEventY());
+				int but = Mouse.getEventButton();
+				if (but == 0)
 				{
-					if (t.isPointInside(p))
+					if (this.draw == null)
 					{
-						img.setRGB(i, j, colors[tn]);
-						break;
+						this.centerOfMass = null;
+						this.mesh = null;
+						this.poly = null;
+						this.draw = new PolyDraw(10.0F);
 					}
-					tn++;
+					else
+					{
+						if (this.draw.canEnd(loc))
+						{
+							this.endDraw();
+						}
+					}
 				}
 			}
 		}
-		
-		for (int i = 0; i < gon.verticies.size(); i++)
+		while (Keyboard.next())
 		{
-			Point a = gon.verticies.get(i);
-			Point b = gon.verticies.get((i + 1) % gon.verticies.size());
-			Ray r = new Ray(a, b);
-			double l = r.getVector().getLength();
-			l *= sx * 4;
-			double x = a.x;
-			double y = a.y;
-			double dx = r.xLength() / l;
-			double dy = r.yLength() / l;
-			for (int j = 0; j < l; j++)
+			boolean num = false;
+			try
 			{
-				img.setRGB((int) (x * sx) + ox, (int) (y * sy) + oy, 0xFF0000FF);
-				x += dx;
-				y += dy;
+				this.renderMode = Integer.parseUnsignedInt("" + Keyboard.getEventCharacter());
+				num = true;
 			}
-			
-			img.setRGB((int) (a.x * sx) + ox, (int) (a.y * sy) + oy, 0xFFFF0000);
+			catch (NumberFormatException e)
+			{
+
+			}
+			if (!num)
+			{
+
+			}
 		}
-		
-		for (Triangle t : mesh.triangles)
+	}
+
+	public void setDisplayMode(int width, int height, boolean fullscreen)
+	{
+		if ((Display.getDisplayMode().getWidth() == width) && (Display.getDisplayMode().getHeight() == height) && (Display.isFullscreen() == fullscreen))
 		{
-			Point c = t.getCentroid();
-			img.setRGB((int) (c.x * sx) + ox, (int) (c.y * sy) + oy, 0xFF00FF00);
+			return;
 		}
-		
-		Point c = mesh.getCenterOfMass();
-		img.setRGB((int) (c.x * sx) + ox, (int) (c.y * sy) + oy, 0xFFFFFFFF);
-		img.setRGB((int) (c.x * sx) + ox + 1, (int) (c.y * sy) + oy, 0xFFFFFFFF);
-		img.setRGB((int) (c.x * sx) + ox, (int) (c.y * sy) + oy + 1, 0xFFFFFFFF);
-		img.setRGB((int) (c.x * sx) + ox - 1, (int) (c.y * sy) + oy, 0xFFFFFFFF);
-		img.setRGB((int) (c.x * sx) + ox, (int) (c.y * sy) + oy - 1, 0xFFFFFFFF);
-		
-		System.out.printf("Center: x = %.2f y = %.2f%n", c.x, c.y);
-		System.out.printf("Total Area = %.2f%n", mesh.getTotalArea());
-		
+
 		try
 		{
-			ImageIO.write(img, "PNG", new File("out.test.png"));
+			DisplayMode targetDisplayMode = null;
+
+			if (fullscreen)
+			{
+				DisplayMode[] modes = Display.getAvailableDisplayModes();
+				int freq = 0;
+
+				for (int i = 0; i < modes.length; i++)
+				{
+					DisplayMode current = modes[i];
+
+					if ((current.getWidth() == width) && (current.getHeight() == height))
+					{
+						if ((targetDisplayMode == null) || (current.getFrequency() >= freq))
+						{
+							if ((targetDisplayMode == null) || (current.getBitsPerPixel() > targetDisplayMode.getBitsPerPixel()))
+							{
+								targetDisplayMode = current;
+								freq = targetDisplayMode.getFrequency();
+							}
+						}
+
+						if ((current.getBitsPerPixel() == Display.getDesktopDisplayMode().getBitsPerPixel()) && (current.getFrequency() == Display.getDesktopDisplayMode().getFrequency()))
+						{
+							targetDisplayMode = current;
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				targetDisplayMode = new DisplayMode(width, height);
+			}
+
+			if (targetDisplayMode == null)
+			{
+				System.err.println("Failed to find value mode: " + width + "x" + height + " fs=" + fullscreen);
+				return;
+			}
+
+			Display.setDisplayMode(targetDisplayMode);
+			Display.setFullscreen(fullscreen);
+
 		}
-		catch (IOException e)
+		catch (LWJGLException e)
 		{
-			e.printStackTrace();
+			System.err.println("Unable to setup mode " + width + "x" + height + " fullscreen=" + fullscreen + e);
 		}
+	}
+
+	public void shutdown()
+	{
+		Display.destroy();
+		System.exit(0);
+	}
+
+	public void updateDisplay(int width, int height, boolean full, boolean vsync)
+	{
+		this.setDisplayMode(width, height, full);
+		Display.setTitle("Sculpt Mobile");
+		Display.setVSyncEnabled(vsync);
 	}
 }
